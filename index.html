@@ -200,6 +200,127 @@ setInterval(loadFlights, 10000);
 
 
 
+
+
+
+
+        
+
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Globe Interactif avec Vidéos</title>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.94/Build/Cesium/Cesium.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.94/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; display: flex; }
+        #cesiumContainer { width: 75%; height: 100vh; }
+        #panel { width: 25%; height: 100vh; overflow-y: auto; background: #222; color: white; padding: 10px; }
+        #videoContainer { display: none; position: absolute; top: 20px; right: 20px; width: 320px; background: rgba(0,0,0,0.8); padding: 10px; }
+        #videoStream { width: 100%; height: auto; }
+        .camera-item { padding: 5px; cursor: pointer; border-bottom: 1px solid #444; }
+        .camera-item:hover { background: #444; }
+        .filter { margin-bottom: 10px; padding: 5px; width: 100%; }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+    <div id="panel">
+        <h3>📡 Caméras en Direct</h3>
+        <select id="categoryFilter" class="filter">
+            <option value="all">Toutes les caméras</option>
+            <option value="city">🏙️ Villes</option>
+            <option value="airport">✈️ Aéroports</option>
+            <option value="highway">🚗 Autoroutes</option>
+        </select>
+        <input type="text" id="searchBar" class="filter" placeholder="🔍 Rechercher un pays ou une ville">
+        <div id="cameraList">Chargement...</div>
+    </div>
+    <div id="videoContainer">
+        <video id="videoStream" controls autoplay></video>
+        <button onclick="closeVideo()">❌ Fermer</button>
+    </div>
+
+    <script>
+        Cesium.Ion.defaultAccessToken = "TON_CESIUM_ION_TOKEN_ICI";
+        const viewer = new Cesium.Viewer('cesiumContainer', {
+            terrainProvider: Cesium.createWorldTerrain()
+        });
+
+        const CAMERA_API_URL = "https://api.opentopodata.org/v1/test-dataset"; // Remplace avec une vraie API
+
+        let camerasData = [];
+
+        async function loadCameras() {
+            try {
+                const response = await fetch(CAMERA_API_URL);
+                const data = await response.json();
+                camerasData = data.cameras;
+                displayCameras();
+            } catch (error) {
+                console.error("❌ Erreur chargement des caméras :", error);
+                document.getElementById("cameraList").innerHTML = "⚠️ Impossible de charger les caméras.";
+            }
+        }
+
+        function displayCameras() {
+            const categoryFilter = document.getElementById("categoryFilter").value;
+            const searchQuery = document.getElementById("searchBar").value.toLowerCase();
+            const cameraList = document.getElementById("cameraList");
+            cameraList.innerHTML = "";
+
+            camerasData.forEach(camera => {
+                const { lat, lon, name, category, country, city, stream_url } = camera;
+
+                if ((categoryFilter === "all" || category === categoryFilter) &&
+                    (name.toLowerCase().includes(searchQuery) || country.toLowerCase().includes(searchQuery) || city.toLowerCase().includes(searchQuery))) {
+
+                    // Ajouter l'icône sur la carte
+                    viewer.entities.add({
+                        position: Cesium.Cartesian3.fromDegrees(lon, lat),
+                        billboard: { image: "https://upload.wikimedia.org/wikipedia/commons/8/88/Map_marker.svg", width: 24, height: 24 },
+                        label: { text: name, font: "12px sans-serif", fillColor: Cesium.Color.CYAN },
+                        description: `<button onclick="openVideo('${stream_url}')">🎥 Voir en direct</button>`
+                    });
+
+                    // Ajouter à la liste
+                    const cameraItem = document.createElement("div");
+                    cameraItem.classList.add("camera-item");
+                    cameraItem.innerHTML = `📍 ${name} (${city}, ${country})`;
+                    cameraItem.onclick = () => openVideo(stream_url);
+                    cameraList.appendChild(cameraItem);
+                }
+            });
+        }
+
+        document.getElementById("categoryFilter").addEventListener("change", displayCameras);
+        document.getElementById("searchBar").addEventListener("input", displayCameras);
+
+        function openVideo(url) {
+            document.getElementById("videoContainer").style.display = "block";
+            document.getElementById("videoStream").src = url;
+        }
+
+        function closeVideo() {
+            document.getElementById("videoContainer").style.display = "none";
+            document.getElementById("videoStream").pause();
+            document.getElementById("videoStream").src = "";
+        }
+
+        loadCameras();
+    </script>
+</body>
+</html>
+        
+
+
+        
+
+
+
     </script>
 </body>
 </html>
