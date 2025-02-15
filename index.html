@@ -7,8 +7,14 @@
     <script src="https://cesium.com/downloads/cesiumjs/releases/1.94/Build/Cesium/Cesium.js"></script>
     <link href="https://cesium.com/downloads/cesiumjs/releases/1.94/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; }
-        #cesiumContainer { width: 100%; height: 100vh; display: none; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; display: flex; }
+        #cesiumContainer { width: 75%; height: 100vh; }
+        #panel { width: 25%; height: 100vh; overflow-y: auto; background: #222; color: white; padding: 10px; }
+        #videoContainer { display: none; position: absolute; top: 20px; right: 20px; width: 320px; background: rgba(0,0,0,0.8); padding: 10px; }
+        #videoStream { width: 100%; height: auto; }
+        .camera-item { padding: 5px; cursor: pointer; border-bottom: 1px solid #444; }
+        .camera-item:hover { background: #444; }
+        .filter { margin-bottom: 10px; padding: 5px; width: 100%; }
         #errorMessage { 
             display: none; 
             position: absolute; 
@@ -22,45 +28,12 @@
             text-align: center; 
         }
     </style>
-
-
-<meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Globe Interactif avec Vidéos</title>
-    <script src="https://cesium.com/downloads/cesiumjs/releases/1.94/Build/Cesium/Cesium.js"></script>
-    <link href="https://cesium.com/downloads/cesiumjs/releases/1.94/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
-    <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; display: flex; }
-        #cesiumContainer { width: 75%; height: 100vh; }
-        #panel { width: 25%; height: 100vh; overflow-y: auto; background: #222; color: white; padding: 10px; }
-        #videoContainer { display: none; position: absolute; top: 20px; right: 20px; width: 320px; background: rgba(0,0,0,0.8); padding: 10px; }
-        #videoStream { width: 100%; height: auto; }
-        .camera-item { padding: 5px; cursor: pointer; border-bottom: 1px solid #444; }
-        .camera-item:hover { background: #444; }
-        .filter { margin-bottom: 10px; padding: 5px; width: 100%; }
-    </style>
-
-
-    
 </head>
-
-
-
-
-
-
-    
 <body>
 
-    
     <div id="cesiumContainer"></div>
     <div id="errorMessage">⚠️ WebGL n'est pas supporté sur votre navigateur. Veuillez essayer un autre navigateur comme Chrome ou Firefox.</div>
-
-
-
-
-
-   <div id="cesiumContainer"></div>
+    
     <div id="panel">
         <h3>📡 Caméras en Direct</h3>
         <select id="categoryFilter" class="filter">
@@ -72,20 +45,12 @@
         <input type="text" id="searchBar" class="filter" placeholder="🔍 Rechercher un pays ou une ville">
         <div id="cameraList">Chargement...</div>
     </div>
+    
     <div id="videoContainer">
         <video id="videoStream" controls autoplay></video>
         <button onclick="closeVideo()">❌ Fermer</button>
     </div>
 
-
-
-
-
-
-
-
-
-    
     <script>
         function isWebGLAvailable() {
             try {
@@ -107,14 +72,15 @@
                 terrainProvider: Cesium.createWorldTerrain()
             });
 
-            // Ajout des routes OpenStreetMap
             viewer.imageryLayers.addImageryProvider(new Cesium.OpenStreetMapImageryProvider({
                 url: 'https://a.tile.openstreetmap.org/'
             }));
 
-            // Points de passage (itinéraire)
             const waypoints = [
-                { lat: -33.9249, lon: 18.4241, name: "Cape Town" },
+                { lat: -33.9249, lon
+
+
+                        { lat: -33.9249, lon: 18.4241, name: "Cape Town" },
                 { lat: 15.5007, lon: 32.5599, name: "Khartoum" },
                 { lat: 30.0444, lon: 31.2357, name: "Caire" },
                 { lat: 39.9334, lon: 32.8597, name: "Ankara" },
@@ -132,7 +98,6 @@
                 });
             });
 
-            // Tracé de l'itinéraire
             viewer.entities.add({
                 polyline: {
                     positions: waypoints.map(p => Cesium.Cartesian3.fromDegrees(p.lon, p.lat)),
@@ -141,7 +106,6 @@
                 }
             });
 
-            // Charger la météo du premier point
             async function loadWeather(lat, lon) {
                 const apiKey = "ba069dd983ac946504cefb53f6f75779";
                 const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric`;
@@ -156,187 +120,123 @@
 
             loadWeather(waypoints[0].lat, waypoints[0].lon);
 
-            // Suivi des avions (simulation avec Flightradar24)
             async function loadFlights() {
-                const url = "https://data-cloud.flightradar24.com/zones/fcgi/feed.js?bounds=90,-90,-180,180";
+                console.log("🔄 Mise à jour des vols en temps réel...");
                 try {
-                    const response = await fetch(url);
+                    const response = await fetch("https://opensky-network.org/api/states/all");
                     const data = await response.json();
-                    Object.values(data).forEach(flight => {
-                        if (Array.isArray(flight)) {
-                            const [lat, lon, , , , , , , callsign] = flight;
+
+                    if (!data.states || data.states.length === 0) {
+                        console.warn("⚠️ Aucune donnée d'avion trouvée !");
+                        return;
+                    }
+
+                    viewer.entities.removeAll();
+
+                    data.states.forEach(flight => {
+                        const callsign = flight[1]?.trim() || "Inconnu";
+                        const lon = flight[5];
+                        const lat = flight[6];
+                        const altitude = flight[7] || 10000;
+                        const heading = flight[10] || 0;
+                        const velocity = flight[9] || 0;
+
+                        if (lat !== null && lon !== null) {
                             viewer.entities.add({
-                                position: Cesium.Cartesian3.fromDegrees(lon, lat),
-                                point: { pixelSize: 5, color: Cesium.Color.BLUE },
-                                label: { text: callsign, font: '12px sans-serif', fillColor: Cesium.Color.CYAN }
+                                position: Cesium.Cartesian3.fromDegrees(lon, lat, altitude),
+                                point: { pixelSize: 10, color: Cesium.Color.RED },
+                                label: {
+                                    text: `${callsign}\nAltitude: ${altitude}m\nVitesse: ${Math.round(velocity * 3.6)} km/h`,
+                                    font: "12px sans-serif",
+                                    fillColor: Cesium.Color.WHITE,
+                                    outlineColor: Cesium.Color.BLACK,
+                                    outlineWidth: 2,
+                                    style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                                    verticalOrigin: Cesium.VerticalOrigin.BOTTOM
+                                },
+                                orientation: Cesium.Transforms.headingPitchRollQuaternion(
+                                    Cesium.Cartesian3.fromDegrees(lon, lat, altitude),
+                                    new Cesium.HeadingPitchRoll(Cesium.Math.toRadians(heading), 0, 0)
+                                )
                             });
                         }
                     });
+
+                    console.log(`✅ ${data.states.length} avions mis à jour !`);
                 } catch (error) {
-                    console.error("Erreur chargement avions", error);
+                    console.error("❌ Erreur lors du chargement des vols :", error);
                 }
             }
 
             loadFlights();
+            setInterval(loadFlights, 10000);
 
-            // Mise à jour météo et vols toutes les 10 minutes
-            setInterval(() => {
-                loadWeather(waypoints[0].lat, waypoints[0].lon);
-                loadFlights();
-            }, 600000);
+            const CAMERA_API_URL = "https://api.windy.com/webcams/list/nearby=48.858844,2.294351?show=webcams&key=Y3S27MrIQNghuaM9x7Ex19gklrWzskk";
 
+            let camerasData = [];
+
+
+
+
+                        async function loadCameras() {
+                try {
+                    const response = await fetch(CAMERA_API_URL);
+                    const data = await response.json();
+                    camerasData = data.result;
+
+                    const cameraList = document.getElementById("cameraList");
+                    cameraList.innerHTML = '';
+
+                    camerasData.forEach(camera => {
+                        const cameraItem = document.createElement("div");
+                        cameraItem.className = "camera-item";
+                        cameraItem.innerText = camera.location.name;
+                        cameraItem.onclick = () => openVideo(camera);
+
+                        cameraList.appendChild(cameraItem);
+                    });
+                } catch (error) {
+                    console.error("❌ Erreur lors du chargement des caméras :", error);
+                }
+            }
+
+            function openVideo(camera) {
+                const videoContainer = document.getElementById("videoContainer");
+                const videoStream = document.getElementById("videoStream");
+                videoStream.src = camera.url; // Assurez-vous que cela correspond à l'URL de la vidéo
+                videoContainer.style.display = 'block';
+            }
+
+            function closeVideo() {
+                const videoContainer = document.getElementById("videoContainer");
+                const videoStream = document.getElementById("videoStream");
+                videoStream.src = "";
+                videoContainer.style.display = 'none';
+            }
+
+            document.getElementById("categoryFilter").addEventListener("change", loadCameras);
+            document.getElementById("searchBar").addEventListener("keyup", () => {
+                const filterValue = document.getElementById("searchBar").value.toLowerCase();
+                const filteredCameras = camerasData.filter(camera => camera.location.name.toLowerCase().includes(filterValue));
+                const cameraList = document.getElementById("cameraList");
+                cameraList.innerHTML = '';
+
+                filteredCameras.forEach(camera => {
+                    const cameraItem = document.createElement("div");
+                    cameraItem.className = "camera-item";
+                    cameraItem.innerText = camera.location.name;
+                    cameraItem.onclick = () => openVideo(camera);
+
+                    cameraList.appendChild(cameraItem);
+                });
+            });
+
+            loadCameras();
         } else {
             document.getElementById("errorMessage").style.display = "block";
         }
-
-
-
-
-
-
-
-async function loadFlights() {
-    console.log("🔄 Mise à jour des vols en temps réel...");
-
-    try {
-        const response = await fetch("https://opensky-network.org/api/states/all");
-        const data = await response.json();
-
-        // Vérifier si l'API renvoie bien des données
-        if (!data.states || data.states.length === 0) {
-            console.warn("⚠️ Aucune donnée d'avion trouvée !");
-            return;
-        }
-
-        // Supprimer tous les avions précédents pour mettre à jour en temps réel
-        viewer.entities.removeAll();
-
-        // Boucle sur chaque avion
-        data.states.forEach(flight => {
-            const callsign = flight[1]?.trim() || "Inconnu"; // Nom du vol
-            const lon = flight[5]; // Longitude
-            const lat = flight[6]; // Latitude
-            const altitude = flight[7] || 10000; // Altitude en mètres
-            const heading = flight[10] || 0; // Cap de l'avion
-            const velocity = flight[9] || 0; // Vitesse en m/s
-
-            if (lat !== null && lon !== null) {
-                viewer.entities.add({
-                    position: Cesium.Cartesian3.fromDegrees(lon, lat, altitude),
-                    point: { pixelSize: 10, color: Cesium.Color.RED },
-                    label: {
-                        text: `${callsign}\nAltitude: ${altitude}m\nVitesse: ${Math.round(velocity * 3.6)} km/h`,
-                        font: "12px sans-serif",
-                        fillColor: Cesium.Color.WHITE,
-                        outlineColor: Cesium.Color.BLACK,
-                        outlineWidth: 2,
-                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-                        verticalOrigin: Cesium.VerticalOrigin.BOTTOM
-                    },
-                    orientation: Cesium.Transforms.headingPitchRollQuaternion(
-                        Cesium.Cartesian3.fromDegrees(lon, lat, altitude),
-                        new Cesium.HeadingPitchRoll(Cesium.Math.toRadians(heading), 0, 0)
-                    )
-                });
-            }
-        });
-
-        console.log(`✅ ${data.states.length} avions mis à jour !`);
-
-    } catch (error) {
-        console.error("❌ Erreur lors du chargement des vols :", error);
-    }
-}
-
-// Charger les avions au démarrage
-loadFlights();
-
-// Mettre à jour les avions toutes les 10 secondes
-setInterval(loadFlights, 10000);
-
-
-
-
-
-
-
-
-
-
-        
-
-
-
- 
-
-    <script>
-        Cesium.Ion.defaultAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJhY2Y2ODc1My1hZmQ3LTRmNWUtYmRmNC1hMmE2NGFjZTQxZGMiLCJpZCI6Mjc2MDkyLCJpYXQiOjE3Mzk1NTI0ODZ9.H_AEmV0aw0gIcScku5Aw4JNtkix9GUdUG8QZ3Fo0XrI';
-        const viewer = new Cesium.Viewer('cesiumContainer', {
-            terrainProvider: Cesium.createWorldTerrain()
-        });
-
-        const CAMERA_API_URL = "https://api.windy.com/webcams/list/nearby=48.858844,2.294351?show=webcams&key=Y3S27MrIQNghuaM9x7Ex19gklrWzskk";// Remplace avec une vraie API
-
-        let camerasData = [];
-
-        async function loadCameras() {
-            try {
-                const response = await fetch(CAMERA_API_URL);
-                const data = await response.json();
-                camerasData = data.cameras;
-                displayCameras();
-            } catch (error) {
-                console.error("❌ Erreur chargement des caméras :", error);
-                document.getElementById("cameraList").innerHTML = "⚠️ Impossible de charger les caméras.";
-            }
-        }
-
-        function displayCameras() {
-            const categoryFilter = document.getElementById("categoryFilter").value;
-            const searchQuery = document.getElementById("searchBar").value.toLowerCase();
-            const cameraList = document.getElementById("cameraList");
-            cameraList.innerHTML = "";
-
-            camerasData.forEach(camera => {
-                const { lat, lon, name, category, country, city, stream_url } = camera;
-
-                if ((categoryFilter === "all" || category === categoryFilter) &&
-                    (name.toLowerCase().includes(searchQuery) || country.toLowerCase().includes(searchQuery) || city.toLowerCase().includes(searchQuery))) {
-
-                    // Ajouter l'icône sur la carte
-                    viewer.entities.add({
-                        position: Cesium.Cartesian3.fromDegrees(lon, lat),
-                        billboard: { image: "https://upload.wikimedia.org/wikipedia/commons/8/88/Map_marker.svg", width: 24, height: 24 },
-                        label: { text: name, font: "12px sans-serif", fillColor: Cesium.Color.CYAN },
-                        description: `<button onclick="openVideo('${stream_url}')">🎥 Voir en direct</button>`
-                    });
-
-                    // Ajouter à la liste
-                    const cameraItem = document.createElement("div");
-                    cameraItem.classList.add("camera-item");
-                    cameraItem.innerHTML = `📍 ${name} (${city}, ${country})`;
-                    cameraItem.onclick = () => openVideo(stream_url);
-                    cameraList.appendChild(cameraItem);
-                }
-            });
-        }
-
-        document.getElementById("categoryFilter").addEventListener("change", displayCameras);
-        document.getElementById("searchBar").addEventListener("input", displayCameras);
-
-        function openVideo(url) {
-            document.getElementById("videoContainer").style.display = "block";
-            document.getElementById("videoStream").src = url;
-        }
-
-        function closeVideo() {
-            document.getElementById("videoContainer").style.display = "none";
-            document.getElementById("videoStream").pause();
-            document.getElementById("videoStream").src = "";
-        }
-
-        loadCameras();
-
     </script>
 </body>
 </html>
+
+
